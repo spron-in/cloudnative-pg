@@ -37,7 +37,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	apiv1 "github.com/cloudnative-pg/cloudnative-pg/api/v1"
-	v1 "github.com/cloudnative-pg/cloudnative-pg/api/v1"
 	"github.com/cloudnative-pg/cloudnative-pg/controllers"
 	"github.com/cloudnative-pg/cloudnative-pg/internal/management/utils"
 	"github.com/cloudnative-pg/cloudnative-pg/pkg/certs"
@@ -1204,7 +1203,7 @@ func (r *InstanceReconciler) refreshPGHBA(ctx context.Context, cluster *apiv1.Cl
 	return r.instance.RefreshPGHBA(cluster, ldapBindPassword)
 }
 
-func (r *InstanceReconciler) reconcileReplicationSlots(ctx context.Context, cluster *v1.Cluster) error {
+func (r *InstanceReconciler) reconcileReplicationSlots(ctx context.Context, cluster *apiv1.Cluster) error {
 	if isPrimary, _ := r.instance.IsPrimary(); !isPrimary {
 		return nil
 	}

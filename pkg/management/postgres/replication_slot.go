@@ -30,6 +30,7 @@ type SlotType string
 // SlotTypePhysical represents the physical replication slot
 const SlotTypePhysical = "physical"
 
+// SlotPrefix is the prefix we use to create our slots
 const SlotPrefix = "_cnpg_slot_"
 
 // ReplicationSlot represent the unit of a replication slot
@@ -45,8 +46,10 @@ type ReplicationSlotList struct {
 	Items       []ReplicationSlot
 }
 
-var podSerialNumber = regexp.MustCompile(".*-(?P<wat>[0-9]+)$")
-var slotSerialNumber = regexp.MustCompile(".*_(?P<wat>[0-9]+)$")
+var (
+	podSerialNumber  = regexp.MustCompile(".*-(?P<wat>[0-9]+)$")
+	slotSerialNumber = regexp.MustCompile(".*_(?P<wat>[0-9]+)$")
+)
 
 // GetSlotName return the slot name based in the current pod name
 func GetSlotName(podName string) (string, error) {
@@ -57,8 +60,8 @@ func GetSlotName(podName string) (string, error) {
 	slotName := fmt.Sprintf("%s%s", SlotPrefix, match[1])
 
 	return slotName, nil
-
 }
+
 func (rs *ReplicationSlotList) getPodNameBySlot(slotName string) (string, error) {
 	match := slotSerialNumber.FindStringSubmatch(slotName)
 	if len(match) != 2 {
@@ -68,6 +71,7 @@ func (rs *ReplicationSlotList) getPodNameBySlot(slotName string) (string, error)
 
 	return podName, nil
 }
+
 func (rs *ReplicationSlotList) getSlotByPodName(podName string) *ReplicationSlot {
 	if rs == nil || len(rs.Items) == 0 {
 		return nil
@@ -166,9 +170,7 @@ func (instance *Instance) CreateReplicationSlot(podName string) error {
 		return err
 	}
 
-	query := fmt.Sprintf(
-		"SELECT * FROM pg_create_physical_replication_slot('%s')", slotName)
-	row := superUserDB.QueryRow(query)
+	row := superUserDB.QueryRow("SELECT * FROM pg_create_physical_replication_slot('$1')", slotName)
 	if row.Err() != nil {
 		return err
 	}
