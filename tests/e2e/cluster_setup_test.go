@@ -30,7 +30,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = FDescribe("Cluster setup", func() {
+var _ = Describe("Cluster setup", func() {
 	const (
 		namespace   = "cluster-storageclass-e2e"
 		sampleFile  = fixturesDir + "/base/cluster-storage-class.yaml"
