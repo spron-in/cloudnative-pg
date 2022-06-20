@@ -494,7 +494,7 @@ kind: Cluster
       source: clusterBackup
       recoveryTarget:
         backupID: 20220616T142236
-        targetName: "restore_point_1'
+        targetName: 'restore_point_1'
 [...]
 ```
 
