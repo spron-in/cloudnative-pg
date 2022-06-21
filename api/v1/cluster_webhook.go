@@ -213,6 +213,10 @@ func (r *Cluster) defaultInitDB() {
 
 // defaultRecovery enriches the recovery with defaults if not all the required arguments were passed
 func (r *Cluster) defaultRecovery() {
+	// no application database configuration for replica cluster
+	if r.IsReplica() {
+		return
+	}
 	// if none area is provided, will ignore the application database configuration
 	if r.Spec.Bootstrap.Recovery.Database == "" &&
 		r.Spec.Bootstrap.Recovery.Owner == "" &&
@@ -229,6 +233,10 @@ func (r *Cluster) defaultRecovery() {
 
 // defaultPgBaseBackup enriches the pg_basebackup with defaults if not all the required arguments were passed
 func (r *Cluster) defaultPgBaseBackup() {
+	// no application database configuration for replica cluster
+	if r.IsReplica() {
+		return
+	}
 	// if none area is provided, will ignore the application database configuration
 	if r.Spec.Bootstrap.PgBaseBackup.Database == "" &&
 		r.Spec.Bootstrap.PgBaseBackup.Owner == "" &&
@@ -266,6 +274,8 @@ func (r *Cluster) Validate() (allErrs field.ErrorList) {
 	type validation func() field.ErrorList
 	validations := []validation{
 		r.validateInitDB,
+		r.validateRecoveryApplicationDatabase,
+		r.validatePgBaseBackupApplicationDatabase,
 		r.validateSuperuserSecret,
 		r.validateCerts,
 		r.validateBootstrapMethod,
@@ -419,7 +429,7 @@ func (r *Cluster) validateInitDB() field.ErrorList {
 
 // validateRecovery validate the bootstrapping options when Recovery
 // method is used
-func (r *Cluster) validateRecovery() field.ErrorList {
+func (r *Cluster) validateRecoveryApplicationDatabase() field.ErrorList {
 	var result field.ErrorList
 
 	// If it's not configured, everything is ok
@@ -431,33 +441,14 @@ func (r *Cluster) validateRecovery() field.ErrorList {
 		return result
 	}
 
-	// If you specify the database name, then you need also to specify the
-	// owner user and vice-versa
 	recoveryOptions := r.Spec.Bootstrap.Recovery
-
-	if recoveryOptions.Database != "" && recoveryOptions.Owner == "" {
-		result = append(
-			result,
-			field.Invalid(
-				field.NewPath("spec", "bootstrap", "recovery", "owner"),
-				"",
-				"You need to specify the database owner user"))
-	}
-	if recoveryOptions.Database == "" && recoveryOptions.Owner != "" {
-		result = append(
-			result,
-			field.Invalid(
-				field.NewPath("spec", "bootstrap", "recovery", "database"),
-				"",
-				"You need to specify the database name"))
-	}
-
-	return result
+	return r.validateApplicationDatabase(recoveryOptions.Database, recoveryOptions.Owner,
+		recoveryOptions.Secret, r.IsReplica(), "recovery")
 }
 
 // validatePgBaseBackup validate the bootstrapping options when pg_basebackup
 // method is used
-func (r *Cluster) validatePgBaseBackup() field.ErrorList {
+func (r *Cluster) validatePgBaseBackupApplicationDatabase() field.ErrorList {
 	var result field.ErrorList
 
 	// If it's not configured, everything is ok
@@ -469,27 +460,43 @@ func (r *Cluster) validatePgBaseBackup() field.ErrorList {
 		return result
 	}
 
-	// If you specify the database name, then you need also to specify the
-	// owner user and vice-versa
 	pgBaseBackupOptions := r.Spec.Bootstrap.PgBaseBackup
+	return r.validateApplicationDatabase(pgBaseBackupOptions.Database, pgBaseBackupOptions.Owner,
+		pgBaseBackupOptions.Secret, r.IsReplica(), "pg_basebackup")
+}
 
-	if pgBaseBackupOptions.Database != "" && pgBaseBackupOptions.Owner == "" {
+// validateApplicationDatabase validate the configuration for application database
+func (r *Cluster) validateApplicationDatabase(database string, owner string,
+	secrets *LocalObjectReference, replica bool, command string,
+) field.ErrorList {
+	var result field.ErrorList
+	if !replica {
+		// If you specify the database name, then you need also to specify the
+		// owner user and vice-versa
+		if database != "" && owner == "" {
+			result = append(
+				result,
+				field.Invalid(
+					field.NewPath("spec", "bootstrap", command, "owner"),
+					"",
+					"You need to specify the database owner user"))
+		}
+		if database == "" && owner != "" {
+			result = append(
+				result,
+				field.Invalid(
+					field.NewPath("spec", "bootstrap", command, "database"),
+					"",
+					"You need to specify the database name"))
+		}
+	} else if database != "" || owner != "" || secrets != nil {
 		result = append(
 			result,
 			field.Invalid(
-				field.NewPath("spec", "bootstrap", "pg_basebackup", "owner"),
+				field.NewPath("spec", "bootstrap", command),
 				"",
-				"You need to specify the database owner user"))
+				"Application database can not be configured when cluster is in replica mode"))
 	}
-	if pgBaseBackupOptions.Database == "" && pgBaseBackupOptions.Owner != "" {
-		result = append(
-			result,
-			field.Invalid(
-				field.NewPath("spec", "bootstrap", "pg_basebackup", "database"),
-				"",
-				"You need to specify the database name"))
-	}
-
 	return result
 }
 
@@ -1120,7 +1127,6 @@ func (r *Cluster) validateReplicaMode() field.ErrorList {
 			r.Spec.ReplicaCluster,
 			"replica mode is compatible only with bootstrap using pg_basebackup or recovery"))
 	}
-
 	_, found := r.ExternalCluster(r.Spec.ReplicaCluster.Source)
 	if !found {
 		result = append(
