@@ -370,15 +370,7 @@ func insertRecordIntoTableWithDatabaseName(namespace, clusterName, databaseName 
 
 // insertRecordIntoTable insert an entry into a table
 func insertRecordIntoTable(namespace, clusterName, tableName string, value int) {
-	commandTimeout := time.Second * 5
-
-	primaryPodInfo, err := env.GetClusterPrimary(namespace, clusterName)
-	Expect(err).NotTo(HaveOccurred())
-
-	query := fmt.Sprintf("INSERT INTO %v VALUES (%v);", tableName, value)
-	_, _, err = env.EventuallyExecCommand(env.Ctx, *primaryPodInfo, specs.PostgresContainerName,
-		&commandTimeout, "psql", "-U", "postgres", "app", "-tAc", query)
-	Expect(err).ToNot(HaveOccurred())
+	insertRecordIntoTableWithDatabaseName(namespace, clusterName, "app", tableName, value)
 }
 
 // AssertDataExpectedCountWithDatabaseName verifies that an expected amount of rows exist on the table
